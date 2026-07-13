@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>love.exe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #030308;
+    --bg-2: #08080f;
+    --term-green: #35ffb0;
+    --term-dim: #1f8a67;
+    --pink: #ff2a74;
+    --pink-soft: #ff8fb3;
+    --pink-deep: #b8104f;
+    --white: #f3f6ff;
+    --error: #ff5a5a;
+    --border: #122b19;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{
+    width:100%; height:100%;
+    background: var(--bg);
+    overflow:hidden;
+    font-family:'JetBrains Mono', monospace;
+  }
+  #stage{
+    position:relative;
+    width:100vw; height:100vh;
+    background:
+      radial-gradient(ellipse at 50% 0%, #0d1222 0%, transparent 65%),
+      var(--bg);
+    display:flex; align-items:center; justify-content:center;
+    perspective: 1400px;
+  }
+
+  /* ---------- starfield ---------- */
+  #stars{
+    position:absolute; inset:0; pointer-events:none;
+  }
+  .star{
+    position:absolute; width:2px; height:2px; background:#8fe9d0;
+    border-radius:50%; opacity:.4;
+    animation: twinkle 3s ease-in-out infinite;
+  }
+  @keyframes twinkle{
+    0%,100%{opacity:.15;}
+    50%{opacity:.75;}
+  }
+
+  /* ---------- terminal window ---------- */
+  #gate{
+    position:relative;
+    width:min(760px, 94vw);
+    background: linear-gradient(180deg, #090f0c, #050706);
+    border:1px solid var(--border);
+    border-radius:12px;
+    box-shadow: 0 0 0 1px rgba(53,255,176,.04), 0 25px 65px rgba(0,0,0,.75), 0 0 50px rgba(53,255,176,.05);
+    overflow:hidden;
+    transition: opacity .8s ease, transform .8s ease, filter .8s ease;
+    z-index: 3;
+  }
+  #gate.fading{
+    opacity:0; transform: scale(.9); filter: blur(8px);
+    pointer-events:none;
+  }
+  .titlebar{
+    display:flex; align-items:center; gap:8px;
+    padding:12px 18px;
+    background:#070b09;
+    border-bottom:1px solid var(--border);
+  }
+  .dot{width:11px; height:11px; border-radius:50%;}
+  .dot.r{background:#ff5f57;} .dot.y{background:#febc2e;} .dot.g{background:#28c840;}
+  .titlebar span{
+    margin-left:10px; color:#557262; font-size:12.5px; letter-spacing:.5px;
+  }
+  #term{
+    padding:28px 28px 24px;
+    min-height:350px;
+    max-height:68vh;
+    overflow-y:auto;
+    color: var(--term-green);
+    font-size:15px;
+    line-height:1.8;
+  }
+  #term::-webkit-scrollbar{width:6px;}
+  #term::-webkit-scrollbar-thumb{background:var(--border); border-radius:3px;}
+
+  .line{white-space:pre-wrap; word-break:break-word;}
+  .tag{color:var(--pink-soft); font-weight:600;}
+  .dim{color:var(--term-dim);}
+  .err{color:var(--error);}
+  .sys{color:#7fb8ff; font-weight:600;}
+  .tam{color:var(--term-green);}
+  .prompt-row{
+    display:flex; align-items:center; gap:8px; margin-top:6px;
+    flex-wrap:wrap;
+  }
+  .prompt-label{color:var(--pink-soft); white-space:nowrap;}
+  #nameInput{
+    flex:1; min-width:120px;
+    background:transparent; border:none; outline:none;
+    color: var(--white); font-family:inherit; font-size:15px;
+    caret-color: var(--term-green);
+  }
+  #nameInput::placeholder{color:#263d32;}
+
+  .cursor{
+    display:inline-block; width:8px; height:16px; background:var(--term-green);
+    vertical-align:-3px; animation: blink 1s step-end infinite;
+  }
+  @keyframes blink{50%{opacity:0;}}
+
+  .choices{
+    display:flex; gap:14px; margin-top:16px;
+    align-items:center;
+  }
+  .choice-btn{
+    font-family:inherit; font-size:14px; font-weight:600;
+    background:#08140f; color:var(--term-green);
+    border:1px solid var(--term-dim);
+    padding:8px 20px; border-radius:6px; cursor:pointer;
+    transition: transform .18s ease, background .18s ease, border-color .18s ease, color .18s ease, opacity .3s ease, width .3s ease, padding .3s ease;
+  }
+  .choice-btn:hover{
+    border-color: var(--term-green);
+    box-shadow: 0 0 14px rgba(53,255,176,.25);
+  }
+  .choice-btn.yes{
+    color:#050706; background: var(--term-green);
+  }
+  .choice-btn.yes:hover{
+    box-shadow: 0 0 24px rgba(53,255,176,.55);
+  }
+  .choice-btn.no{
+    transition: transform .12s ease, left .18s ease, top .18s ease, opacity .25s ease, width .25s ease, padding .25s ease, margin .25s ease;
+  }
+  .choice-btn.no.gone{
+    opacity:0; width:0; padding:0; margin:0; border:none; overflow:hidden; pointer-events:none;
+  }
+
+  /* ---------- love meter ---------- */
+  #meterWrap{
+    margin-top:10px;
+    display:none;
+    flex-direction:column;
+    gap:6px;
+  }
+  #meterWrap.show{display:flex;}
+  .meter-label{color:var(--pink-soft); font-size:13px; letter-spacing:.3px;}
+  .meter-bar-outer{
+    display:flex; align-items:center; gap:10px;
+  }
+  #meterBrackets{
+    color: var(--term-green);
+    font-size:14px;
+    letter-spacing:0px;
+  }
+  #meterPercent{
+    color: var(--white); font-weight:700; font-size:13px; min-width:44px;
+  }
+
+  /* ---------- cosmic grid scene ---------- */
+  #heartScene{
+    position:absolute; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    flex-direction:column;
+    opacity:0; pointer-events:none;
+    transition: opacity 1.5s ease;
+    z-index:2;
+  }
+  #heartScene.visible{opacity:1; pointer-events:auto;}
+
+  /* --- Các hạt đốm sáng lơ lửng xung quanh (Ambient Particles) --- */
+  #ambientParticles {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 1; /* Nằm dưới lớp thiên hà chính một chút */
+  }
+  .ambient-dot {
+    position: absolute;
+    border-radius: 50%;
+    will-change: transform, opacity;
+  }
+  @keyframes dustFloat {
+    0% { transform: translate(0, 0) scale(0.5); opacity: 0; }
+    20% { opacity: var(--max-opacity, 0.8); transform: translate(calc(var(--dx)*0.2), calc(var(--dy)*0.2)) scale(1); }
+    80% { opacity: var(--max-opacity, 0.8); transform: translate(calc(var(--dx)*0.8), calc(var(--dy)*0.8)) scale(1); }
+    100% { transform: translate(var(--dx), var(--dy)) scale(0.5); opacity: 0; }
+  }
+
+  #floatLayer{
+    position:absolute; inset:0; overflow:hidden; pointer-events:none;
+    z-index: 2;
+  }
+  .floatWord{
+    position:absolute;
+    font-weight:700;
+    color: var(--pink-deep);
+    opacity:0;
+    letter-spacing:1px;
+    text-shadow: 0 0 12px rgba(255,42,116,.45);
+    animation: floatUp linear forwards;
+    white-space:nowrap;
+  }
+  @keyframes floatUp{
+    0%{ transform: translateY(0) translateX(0) scale(.85); opacity:0; }
+    10%{ opacity:.6; }
+    85%{ opacity:.45; }
+    100%{ transform: translateY(-115vh) translateX(var(--drift,0px)) scale(1.05); opacity:0; }
+  }
+
+  #heartWrap{
+    position:relative;
+    width:min(580px, 90vw);
+    height:min(520px, 72vh);
+    transform-style: preserve-3d;
+    transition: transform 0.1s ease-out;
+    display:flex; align-items:center; justify-content:center;
+    z-index: 3;
+  }
+  
+  /* Tâm điểm ánh sáng hiển thị tên Uyên cực đẹp */
+  #centerName {
+    position: absolute;
+    font-size: clamp(22px, 4.5vw, 36px);
+    font-weight: 800;
+    color: #ffffff;
+    white-space: nowrap;
+    z-index: 5;
+    letter-spacing: 2px;
+    animation: glowPulse 2s ease-in-out infinite alternate;
+  }
+  @keyframes glowPulse {
+    from {
+      text-shadow: 0 0 15px var(--pink), 0 0 30px var(--pink);
+      transform: scale(0.96);
+    }
+    to {
+      text-shadow: 0 0 25px var(--pink-soft), 0 0 50px var(--pink), 0 0 70px var(--pink);
+      transform: scale(1.04);
+    }
+  }
+
+  #heartPulse{
+    position:absolute;
+    width:100%; height:100%;
+    transform-style: preserve-3d;
+    animation: beat 1.3s ease-in-out infinite;
+  }
+  @keyframes beat{
+    0%, 100%{ transform: scale(1); }
+    50%{ transform: scale(1.04); }
+  }
+  
+  /* Lớp thiên hà xoay tròn đa chiều */
+  #heartRotate{
+    position:relative;
+    width:100%; height:100%;
+    transform-style: preserve-3d;
+    animation: spin 12s linear infinite;
+  }
+  @keyframes spin{
+    from{ transform: rotateY(0deg) rotateX(10deg); }
+    to{ transform: rotateY(360deg) rotateX(10deg); }
+  }
+  .wave-particle{
+    position:absolute;
+    border-radius:50%;
+    transform-style: preserve-3d;
+    will-change: transform, opacity;
+    animation-name: waveFloat;
+    animation-timing-function: ease-in-out;
+    animation-iteration-count: infinite;
+    animation-direction: alternate;
+  }
+  @keyframes waveFloat{
+    0%{ transform: var(--base-transform) translate3d(0,0,0); }
+    100%{ transform: var(--base-transform) translate3d(var(--fx,4px), var(--fy,-6px), var(--fz,6px)); }
+  }
+  .particle{
+    position:absolute;
+    font-weight:600;
+    white-space:nowrap;
+    transform-style: preserve-3d;
+    will-change: transform, opacity;
+    animation-name: orbitFloat;
+    animation-timing-function: ease-in-out;
+    animation-iteration-count: infinite;
+    animation-direction: alternate;
+  }
+  @keyframes orbitFloat{
+    0%{ transform: var(--base-transform) translate3d(0,0,0) rotate(0deg); }
+    50%{ transform: var(--base-transform) translate3d(var(--fx,6px), var(--fy,-8px), var(--fz,10px)) rotate(var(--fr,4deg)); }
+    100%{ transform: var(--base-transform) translate3d(calc(var(--fx,6px) * -1), calc(var(--fy,-8px) * -0.6), calc(var(--fz,10px) * -1)) rotate(calc(var(--fr,4deg) * -1)); }
+  }
+
+  #caption{
+    margin-top: 10px;
+    text-align:center;
+    color: var(--pink-soft);
+    font-size: clamp(14px, 2.3vw, 17px);
+    letter-spacing: .5px;
+    text-shadow: 0 0 20px rgba(255,42,116,.4);
+    opacity:0;
+    transition: opacity 1.5s ease 1.4s;
+    z-index: 4;
+  }
+  #caption.show{opacity:1;}
+  #caption .name{
+    color: var(--white); font-weight:800;
+    text-shadow: 0 0 10px #ffffff;
+  }
+
+  #restart{
+    margin-top:20px;
+    background:none; border:1px solid rgba(255,143,179,.3);
+    color: var(--pink-soft);
+    font-family:inherit; font-size:11px;
+    padding:6px 16px; border-radius:20px; cursor:pointer;
+    opacity:0; transition: opacity 1.5s ease 1.8s, border-color .2s;
+    letter-spacing:.5px;
+    z-index: 4;
+  }
+  #restart.show{opacity:.55;}
+  #restart:hover{border-color: var(--pink-soft); opacity:1 !important;}
+
+  @media (prefers-reduced-motion: reduce){
+    #heartPulse{animation:none;}
+    #heartRotate{animation:none;}
+    .floatWord{animation:none; display:none;}
+    .particle{animation:none;}
+    .wave-particle{animation:none;}
+    .ambient-dot{animation:none;}
+  }
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <div id="stars"></div>
+
+  <div id="gate">
+    <div class="titlebar">
+      <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+      <span>tâm@love-code: ~/for-mong-uyen</span>
+    </div>
+    <div id="term">
+      <div class="line dim">Booting love-code v1.2.0 ...</div>
+      <div class="line dim">Yêu cầu xác thực danh tính để truy cập dữ liệu lõi.</div>
+      <div class="line">&nbsp;</div>
+      <div class="prompt-row">
+        <span class="prompt-label">&gt; [SYSTEM]: "Nhập đúng tên"</span>
+        <input id="nameInput" type="text" placeholder="..." autocomplete="off" spellcheck="false">
+        <span class="cursor"></span>
+      </div>
+    </div>
+  </div>
+
+  <div id="heartScene">
+    <div id="ambientParticles"></div>
+    <div id="floatLayer"></div>
+    
+    <div id="heartWrap">
+      <div id="centerName"></div>
+      <div id="heartPulse">
+        <div id="heartRotate"></div>
+      </div>
+    </div>
+    <div id="caption">ck iuuu <span class="name">moguyennnn</span> anh iuuuu em bee</div>
+    <button id="restart">chạy lại hệ thống</button>
+  </div>
+</div>
+
+<script>
+/* ================= helpers ================= */
+function normalize(str){
+  return str.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/đ/g,'d')
+    .replace(/[^a-z]/g,'');
+}
+const TARGET = normalize('Trần Mộng Uyên'); 
+
+/* ================= starfield ================= */
+(function initStars(){
+  const s = document.getElementById('stars');
+  for(let i=0;i<75;i++){
+    const d = document.createElement('div');
+    d.className='star';
+    d.style.left = Math.random()*100+'vw';
+    d.style.top = Math.random()*100+'vh';
+    d.style.animationDelay = (Math.random()*3)+'s';
+    s.appendChild(d);
+  }
+})();
+
+/* ================= terminal logic ================= */
+const term = document.getElementById('term');
+const nameInput = document.getElementById('nameInput');
+const gate = document.getElementById('gate');
+let unlocked = false;
+
+function appendLine(html, cls){
+  const div = document.createElement('div');
+  div.className = 'line' + (cls ? ' '+cls : '');
+  div.innerHTML = html;
+  term.appendChild(div);
+  term.scrollTop = term.scrollHeight;
+  return div;
+}
+
+function typeLine(text, cls, speed=32){
+  return new Promise(resolve=>{
+    const div = appendLine('', cls);
+    let i=0;
+    const cur = document.createElement('span');
+    cur.className='cursor';
+    div.appendChild(document.createTextNode(''));
+    div.appendChild(cur);
+    const timer = setInterval(()=>{
+      i++;
+      div.firstChild.nodeValue = text.slice(0,i);
+      term.scrollTop = term.scrollHeight;
+      if(i>=text.length){
+        clearInterval(timer);
+        cur.remove();
+        resolve();
+      }
+    }, speed);
+  });
+}
+
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+nameInput.addEventListener('keydown', async (e)=>{
+  if(e.key !== 'Enter' || unlocked) return;
+  const val = nameInput.value;
+  if(normalize(val) === TARGET){
+    unlocked = true;
+    nameInput.disabled = true;
+    document.querySelector('.prompt-row').style.opacity = .4;
+    appendLine('&nbsp;');
+    await typeLine('[SYSTEM]: Xác thực thành công danh tính. Xin chào Mộng Uyên', 'sys', 26);
+    await sleep(300);
+    await typeLine('> [Tâm]: xinnn chaooo ba xa húi, em be co nho ck hok', 'tam', 40);
+    await sleep(200);
+    showChoices();
+  } else {
+    appendLine('[SYSTEM] ACCESS DENIED: OAT TO HELLLL, nhap lai koi', 'err');
+    nameInput.value='';
+    gate.style.transform = 'translateX(-6px)';
+    setTimeout(()=> gate.style.transform='', 90);
+  }
+});
+
+const teases = [
+  '[SYSTEM]: ek nkaaaaaaaaaa ',
+  '[SYSTEM]: tui angry gồi nkaaa >:(',
+  '[SYSTEM]: em ngol em bam nua koiiiii',
+  '[SYSTEM]: bam nua la ck khot cho vk sem ak nka'
+];
+let noClicks = 0;
+const MAX_NO_CLICKS = 4;
+
+function showChoices(){
+  const row = document.createElement('div');
+  row.className = 'choices';
+  row.id = 'choiceRow';
+
+  const yes = document.createElement('button');
+  yes.className = 'choice-btn yes';
+  yes.textContent = '[ Yes ]';
+
+  const no = document.createElement('button');
+  no.className = 'choice-btn no';
+  no.textContent = '[ No ]';
+
+  row.appendChild(yes);
+  row.appendChild(no);
+  term.appendChild(row);
+  term.scrollTop = term.scrollHeight;
+
+  no.addEventListener('click', ()=>{
+    if(no.classList.contains('gone')) return;
+    noClicks++;
+
+    if(noClicks >= MAX_NO_CLICKS){
+      no.classList.add('gone');
+      appendLine('[SYSTEM]: mấc tiu gồi, vk gà qs akkkk', 'dim');
+      term.scrollTop = term.scrollHeight;
+      const scale = Math.min(1 + noClicks*0.04, 1.35);
+      yes.style.transform = `scale(${scale})`;
+      return;
+    }
+
+    if(row.firstChild === yes){
+      row.insertBefore(no, yes);
+    } else {
+      row.insertBefore(yes, no);
+    }
+    no.style.transform = `translate(${(Math.random()*36-18)}px, ${(Math.random()*12-6)}px)`;
+    setTimeout(()=>{ if(!no.classList.contains('gone')) no.style.transform=''; }, 180);
+
+    appendLine(teases[Math.min(noClicks-1, teases.length-1)], 'dim');
+    term.scrollTop = term.scrollHeight;
+    const scale = Math.min(1 + noClicks*0.04, 1.35);
+    yes.style.transform = `scale(${scale})`;
+  });
+
+  yes.addEventListener('click', async ()=>{
+    yes.disabled = true; no.disabled = true;
+    await typeLine('> [Tâm]: Tình yêu anh dành cho em, nó sẽ mãi tăng tiến và trường tồn', 'tam', 30);
+    await sleep(250);
+    await typeLine('> [Tâm]: Em xem thanh tình yêu anh dành cho em nè', 'tam', 30);
+    await sleep(300);
+    await runLoveMeter();
+    await sleep(200);
+    await typeLine('[SYSTEM]: System loading......', 'sys', 20);
+    await typeLine('[SYSTEM]: Khởi chạy thành công....', 'sys', 20);
+    await sleep(500);
+    transitionToHeart();
+  });
+}
+
+/* ================= love meter (endless progress bar) ================= */
+function runLoveMeter(){
+  return new Promise(resolve=>{
+    const wrap = document.createElement('div');
+    wrap.id = 'meterWrap';
+    wrap.className = 'show';
+
+    const label = document.createElement('div');
+    label.className = 'meter-label';
+    label.textContent = 'tinh cam anh danh cho em:';
+
+    const barOuter = document.createElement('div');
+    barOuter.className = 'meter-bar-outer';
+
+    const brackets = document.createElement('span');
+    brackets.id = 'meterBrackets';
+
+    const percentEl = document.createElement('span');
+    percentEl.id = 'meterPercent';
+    percentEl.textContent = '0%';
+
+    barOuter.appendChild(brackets);
+    barOuter.appendChild(percentEl);
+    wrap.appendChild(label);
+    wrap.appendChild(barOuter);
+    term.appendChild(wrap);
+    term.scrollTop = term.scrollHeight;
+
+    const totalSlots = 40;
+    let pct = 0;
+
+    function render(){
+      const filled = Math.round((pct/100) * totalSlots);
+      const bar = '█'.repeat(filled) + ' '.repeat(totalSlots - filled);
+      brackets.textContent = `[${bar}]`;
+      percentEl.textContent = pct + '%';
+    }
+    render();
+
+    const riseDuration = 1400;
+    const riseStart = performance.now();
+    function rise(now){
+      const t = Math.min((now - riseStart) / riseDuration, 1);
+      pct = Math.round(t * 100);
+      render();
+      if(t < 1){
+        requestAnimationFrame(rise);
+      } else {
+        overflowLoop();
+      }
+    }
+    requestAnimationFrame(rise);
+
+    function overflowLoop(){
+      const overflowStart = performance.now();
+      const overflowDuration = 3000;
+      function loop(now){
+        const elapsed = now - overflowStart;
+        if(elapsed >= overflowDuration){
+          pct = 100;
+          render();
+          appendLine('[SYSTEM_ERROR]: Tình iu của Tâm quá to, phá hỏng cả siêu máy tính', 'err');
+          term.scrollTop = term.scrollHeight;
+          resolve();
+          return;
+        }
+        const cyclePos = (elapsed % 260) / 260;
+        pct = 96 + Math.round(Math.sin(cyclePos * Math.PI * 2) * 4 + Math.random()*2);
+        pct = Math.max(90, Math.min(100, pct));
+        render();
+        term.scrollTop = term.scrollHeight;
+        requestAnimationFrame(loop);
+      }
+      requestAnimationFrame(loop);
+    }
+  });
+}
+
+/* ================= transition ================= */
+function transitionToHeart(){
+  gate.classList.add('fading');
+  setTimeout(()=>{
+    document.getElementById('heartScene').classList.add('visible');
+    buildCosmicSphere();
+    buildWave();
+    buildAmbientParticles(); // Khởi chạy hạt đốm sáng bay xung quanh
+    startFloatingWords();
+    document.getElementById('caption').classList.add('show');
+    document.getElementById('restart').classList.add('show');
+  }, 500);
+}
+
+/* ================= Hạt đốm sáng phát sáng bay lơ lửng xung quanh ================= */
+function buildAmbientParticles() {
+  const container = document.getElementById('ambientParticles');
+  const total = 120;
+  const colors = ['#ff2a74', '#35ffb0', '#ffffff', '#ba55d3', '#ff8fb3']; // Bảng màu neon vũ trụ
+
+  for(let i = 0; i < total; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'ambient-dot';
+
+    const size = Math.random() * 3 + 1.5; // Kích thước hạt từ 1.5px đến 4.5px
+    const color = colors[Math.floor(Math.random() * colors.length)];
+
+    dot.style.width = size + 'px';
+    dot.style.height = size + 'px';
+    dot.style.background = color;
+    dot.style.boxShadow = `0 0 ${size * 3}px ${color}, 0 0 ${size * 6}px ${color}`;
+
+    // Rải ngẫu nhiên khắp màn hình
+    dot.style.left = Math.random() * 100 + 'vw';
+    dot.style.top = Math.random() * 100 + 'vh';
+
+    // Tạo hướng trôi ngẫu nhiên (chủ yếu là trôi lên và sang ngang nhẹ)
+    dot.style.setProperty('--dx', (Math.random() * 120 - 60) + 'px');
+    dot.style.setProperty('--dy', (Math.random() * -150 - 50) + 'px'); 
+    dot.style.setProperty('--max-opacity', (Math.random() * 0.6 + 0.3).toFixed(2));
+
+    const dur = (Math.random() * 12 + 8).toFixed(2) + 's';
+    const delay = (Math.random() * -15).toFixed(2) + 's';
+    
+    // Gắn animation
+    dot.style.animation = `dustFloat ${dur} ease-in-out ${delay} infinite`;
+
+    container.appendChild(dot);
+  }
+}
+
+/* ================= Thiên hà hạt 3D hoàn hảo ================= */
+function buildCosmicSphere(){
+  const container = document.getElementById('heartRotate');
+  container.innerHTML = '';
+  
+  // Các từ khóa phân bố xung quanh tên chính
+  const words = ['Mộng Uyên', 'Tâm ❤ Uyên', 'Love', '❤', 'Forever', 'Uyên'];
+  const W = container.clientWidth || 560;
+  const H = container.clientHeight || 500;
+  const cx = W/2, cy = H/2;
+  const scale = Math.min(W,H) / 2.3; // Bán kính vùng phân bố hạt bóng tinh vân
+
+  const target = 220; // Số lượng hạt bay xung quanh
+
+  for(let i = 0; i < target; i++){
+    // Thuật toán phân bố điểm ngẫu nhiên đồng đều trên bề mặt khối cầu (Spherical Coordinates)
+    const u = Math.random() * 2 - 1;
+    const theta = Math.random() * Math.PI * 2;
+    const radiusFactor = 0.82 + Math.random() * 0.28; // Độ dày mỏng của lớp vỏ tinh vân
+    const r = scale * radiusFactor;
+
+    const x = r * Math.sqrt(1 - u*u) * Math.cos(theta);
+    const y = r * Math.sqrt(1 - u*u) * Math.sin(theta);
+    const z = r * u;
+
+    // Tính tỷ lệ khoảng cách ngẫu nhiên để trộn màu gradient
+    const distFrac = Math.random();
+
+    const el = document.createElement('span');
+    el.className = 'particle';
+    el.textContent = words[Math.floor(Math.random() * words.length)];
+
+    const size = 10 + Math.random() * 7;
+    const px = cx + x;
+    const py = cy - y;
+
+    const hue = mixColor(distFrac);
+    el.style.left = px + 'px';
+    el.style.top = py + 'px';
+    el.style.fontSize = size + 'px';
+    el.style.color = hue.color;
+    
+    // Đổ bóng phát sáng kép tạo khối lượng tử nhòe nghệ thuật
+    el.style.textShadow = `0 0 8px ${hue.glow}, 0 0 16px ${hue.glow}`;
+    el.style.opacity = (0.55 + Math.random() * 0.45).toFixed(2);
+
+    const baseTransform = `translate(-50%,-50%) translateZ(${z}px)`;
+    el.style.setProperty('--base-transform', baseTransform);
+    el.style.transform = baseTransform;
+
+    // Các tham số vi chuyển động tạo hiệu ứng sóng cuộn hữu cơ tự nhiên
+    const fx = (Math.random()*12 - 6).toFixed(1) + 'px';
+    const fy = (Math.random()*12 - 6).toFixed(1) + 'px';
+    const fz = (Math.random()*22 - 11).toFixed(1) + 'px';
+    const fr = (Math.random()*10 - 5).toFixed(1) + 'deg';
+    el.style.setProperty('--fx', fx);
+    el.style.setProperty('--fy', fy);
+    el.style.setProperty('--fz', fz);
+    el.style.setProperty('--fr', fr);
+
+    const dur = (3.0 + Math.random()*3.0).toFixed(2) + 's';
+    const delay = (Math.random()*-6).toFixed(2) + 's';
+    el.style.animationDuration = dur;
+    el.style.animationDelay = delay;
+
+    container.appendChild(el);
+  }
+}
+
+/* Dải tinh vân sóng hạt nâng đỡ bên dưới */
+function buildWave(){
+  const container = document.getElementById('heartRotate');
+  const W = container.clientWidth || 560;
+  const H = container.clientHeight || 500;
+  const baseY = H*0.88;
+  const total = 240;
+
+  for(let i=0;i<total;i++){
+    const xFrac = Math.random();
+    const x = xFrac * W;
+    const freq = 2.5;
+    const wobble = Math.sin(xFrac*Math.PI*2*freq) * (H*0.04)
+                 + Math.sin(xFrac*Math.PI*2*freq*2.1 + 1.2) * (H*0.015);
+    const jitter = (Math.random()*2-1) * (H*0.08);
+    const y = baseY + wobble + jitter;
+    if(y < H*0.68 || y > H*1.15) continue;
+
+    const t = Math.random(); 
+    const el = document.createElement('span');
+    el.className = 'wave-particle';
+
+    const size = 2 + Math.random()*3.5;
+    const hue = waveColor(t);
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    el.style.width = size + 'px';
+    el.style.height = size + 'px';
+    el.style.background = hue.color;
+    el.style.boxShadow = `0 0 ${6+(1-t)*10}px ${hue.glow}, 0 0 12px ${hue.glow}`;
+    el.style.opacity = (0.4 + (1-t)*0.5).toFixed(2);
+
+    const z = (Math.random()*90 - 45);
+    const baseTransform = `translate(-50%,-50%) translateZ(${z}px)`;
+    el.style.setProperty('--base-transform', baseTransform);
+    el.style.transform = baseTransform;
+
+    const fx = (Math.random()*16 - 8).toFixed(1) + 'px';
+    const fy = (Math.random()*12 - 9).toFixed(1) + 'px';
+    const fz = (Math.random()*26 - 13).toFixed(1) + 'px';
+    el.style.setProperty('--fx', fx);
+    el.style.setProperty('--fy', fy);
+    el.style.setProperty('--fz', fz);
+
+    const dur = (2.5 + Math.random()*2.5).toFixed(2) + 's';
+    const delay = (Math.random()*-4).toFixed(2) + 's';
+    el.style.animationDuration = dur;
+    el.style.animationDelay = delay;
+
+    container.appendChild(el);
+  }
+}
+
+function waveColor(t){
+  const c1 = [125,245,255];
+  const c2 = [53,255,176];
+  const c3 = [15,80,64];
+  let r,g,b;
+  if(t < 0.5){
+    const k = t/0.5;
+    r = c1[0] + (c2[0]-c1[0])*k;
+    g = c1[1] + (c2[1]-c1[1])*k;
+    b = c1[2] + (c2[2]-c1[2])*k;
+  } else {
+    const k = (t-0.5)/0.5;
+    r = c2[0] + (c3[0]-c2[0])*k;
+    g = c2[1] + (c3[1]-c2[1])*k;
+    b = c2[2] + (c3[2]-c2[2])*k;
+  }
+  return { color: `rgb(${r|0},${g|0},${b|0})`, glow: `rgba(${r|0},${g|0},${b|0},0.6)` };
+}
+
+function mixColor(t){
+  // Hệ màu 3 tầng: Lõi trắng tuyết hồng -> Thân hồng rực rỡ -> Viền tím ma thuật Cyber
+  const c1 = [255, 240, 245]; 
+  const c2 = [255, 105, 180]; 
+  const c3 = [186, 85, 211];  
+  let r,g,b;
+  if(t < 0.4){
+    const k = t/0.4;
+    r = c1[0] + (c2[0]-c1[0])*k;
+    g = c1[1] + (c2[1]-c1[1])*k;
+    b = c1[2] + (c2[2]-c1[2])*k;
+  } else {
+    const k = (t-0.4)/0.6;
+    r = c2[0] + (c3[0]-c2[0])*k;
+    g = c2[1] + (c3[1]-c2[1])*k;
+    b = c2[2] + (c3[2]-c2[2])*k;
+  }
+  return { color: `rgb(${r|0},${g|0},${b|0})`, glow: `rgba(${r|0},${g|0},${b|0},0.8)` };
+}
+
+/* Mouse parallax tilt tương tác góc nhìn 3D nhẹ nhàng khi di chuột */
+const heartWrap = document.getElementById('heartWrap');
+document.addEventListener('mousemove', (e)=>{
+  const rx = (e.clientY / window.innerHeight - 0.5) * -16;
+  const ry = (e.clientX / window.innerWidth - 0.5) * 16;
+  heartWrap.style.transform = `rotateX(${rx}deg) rotateY(${ry}deg)`;
+});
+
+/* Chữ ma trận bay nền nhẹ nhàng */
+let floatTimer;
+function startFloatingWords(){
+  const layer = document.getElementById('floatLayer');
+  const words = ['Mộng Uyên', 'love', '❤', 'Tâm'];
+  floatTimer = setInterval(()=>{
+    const el = document.createElement('div');
+    el.className = 'floatWord';
+    el.textContent = words[Math.floor(Math.random()*words.length)];
+    const size = 12 + Math.random()*22;
+    el.style.fontSize = size+'px';
+    el.style.left = Math.random()*94 + 'vw';
+    el.style.bottom = '-5vh';
+    el.style.setProperty('--drift', (Math.random()*150 - 75) + 'px');
+    const dur = 8 + Math.random()*7;
+    el.style.animationDuration = dur+'s';
+    layer.appendChild(el);
+    setTimeout(()=> el.remove(), dur*1000 + 200);
+  }, 500);
+}
+
+/* Reset hệ thống */
+document.getElementById('restart').addEventListener('click', ()=>{
+  location.reload();
+});
+</script>
+</body>
+</html>
